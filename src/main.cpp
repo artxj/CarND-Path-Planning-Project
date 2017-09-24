@@ -26,7 +26,7 @@ const double TARGET_X = 30.0;
 const unsigned int STEPS_COUNT = 50;
 constexpr double TIME_STEP = 0.02;
 const double CARS_MIN_DISTANCE = 30.0;
-const double MAX_VELOCITY = 49.0;
+const double MAX_VELOCITY = 49.5;
 const double VELOCITY_STEP = 0.25;
 
 constexpr double time_per_velocity() { return TIME_STEP / 2.24; }
@@ -225,7 +225,10 @@ void calculatePath(const vector<double> &previous_path_x, const vector<double> &
   const vector<double> &map_waypoints_y,
   vector<double> &next_x_vals, vector<double> &next_y_vals) {
 
-  const unsigned int prev_size = previous_path_x.size();
+  // we consider only first 2 steps of previous path here
+  // to have the next changing lane points smooth enough
+  // and adjust speed to the closest car quite fast
+  const unsigned int prev_size = (previous_path_x.size() < 2) ? previous_path_x.size() : 2;
   vector<double> ptsx;
   vector<double> ptsy;
 
@@ -435,7 +438,7 @@ int main() {
 
             costs[check_lane] = calculateCost(check_lane, closest_car_distance,
               closest_car_velocity, MAX_VELOCITY);
-            //cout << "Cost for lane " << check_lane << " is " << costs[check_lane] << endl;
+            cout << "Cost for lane " << check_lane << " is " << costs[check_lane] << endl;
             CarInfo car_info;
             car_info.is_close = car_close;
             car_info.velocity = closest_car_velocity;
@@ -445,9 +448,22 @@ int main() {
           if (lane == 0) costs[2] = 1;
           if (lane == 2) costs[0] = 1;
 
+          // confirms that change lane state always completes
+          if ( (car_d < (lane + 0.5) * LANE_WIDTH - 1) ||
+            (car_d > (lane + 0.5) * LANE_WIDTH + 1) ) {
+            if (costs[lane] < 0.9) {
+              for (unsigned int i = 0; i < 3; ++i) {
+                if (i != lane) costs[i] = 1;
+              }
+            }
+          }
+
           const unsigned int prev_lane = lane;
           auto min_result = std::min_element(costs.begin(), costs.end());
           lane = std::distance(costs.begin(), min_result);
+
+          // do nothing if all costs are same - we need to slow down in the current lane
+          if (costs[lane] == 1) lane = prev_lane;
 
           const bool car_close = associated_info[lane].is_close;
           const double closest_car_velocity = associated_info[lane].velocity;
@@ -456,21 +472,6 @@ int main() {
           } else if (ref_velocity < MAX_VELOCITY && prev_lane == lane) {
             ref_velocity += VELOCITY_STEP;
           }
-          if (lane != prev_lane && ref_velocity > MAX_VELOCITY - 5 * VELOCITY_STEP && !car_close) {
-            //ref_velocity -= 2 * VELOCITY_STEP;
-          }
-
-          /*
-          if (prev_lane == 1 && associated_info[1].is_close) {
-            lane = 0;
-          }
-
-          if (associated_info[1].is_close) {
-            ref_velocity -= VELOCITY_STEP;
-          } else if (ref_velocity < MAX_VELOCITY) {
-            ref_velocity += VELOCITY_STEP;
-          }
-          */
 
           vector<double> next_x_vals;
           vector<double> next_y_vals;
