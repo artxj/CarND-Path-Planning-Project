@@ -211,6 +211,11 @@ void findClosestCar(const vector<vector<double> > &sensor_fusion,
       if ((sensor_car_first_s > car_first_s - 5) && (sensor_car_last_s < car_last_s + 5)) {
         car_close = true;
         min_distance = 0.0;
+      } else if ( old_lane != lane && (sensor_car_first_s < car_first_s - 5) &&
+        (sensor_car_last_s >= car_last_s) ) {
+        // fast car from behind
+        car_close = true;
+        min_distance = 0.0;
       }
 
     }
@@ -433,12 +438,12 @@ int main() {
             bool car_close = false;
             double closest_car_velocity = ref_velocity;
             double closest_car_distance = std::numeric_limits<double>::max();
-            findClosestCar(sensor_fusion, car_s, frenet[0], check_lane, check_lane, prev_size,
+            findClosestCar(sensor_fusion, car_s, frenet[0], check_lane, lane, prev_size,
               car_close, closest_car_velocity, closest_car_distance);
 
             costs[check_lane] = calculateCost(check_lane, closest_car_distance,
               closest_car_velocity, MAX_VELOCITY);
-            cout << "Cost for lane " << check_lane << " is " << costs[check_lane] << endl;
+            // cout << "Cost for lane " << check_lane << " is " << costs[check_lane] << endl;
             CarInfo car_info;
             car_info.is_close = car_close;
             car_info.velocity = closest_car_velocity;
