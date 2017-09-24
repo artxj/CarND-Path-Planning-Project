@@ -1,6 +1,18 @@
 # CarND-Path-Planning-Project
 Self-Driving Car Engineer Nanodegree Program
-   
+
+## Writeup
+
+I have implemented the following idea in this project. Every update step, the three possible paths are generated: keeping the current lane, or changing the lane to the one of the other twos. For every option the information about the closest car (its speed and distance to it) is obtained using the sensor fusion. Based on this info, the cost is assigned to each of three lanes.
+
+When calculating the cost, if some path can result in collision with another car (ahead of our one or with fast moving car from behind when changing lane in front of it), its cost is maximized. Otherwise we penalize the staying in the lane with slow car in front of us, and the penalty grows if this car is near. Also we try to stay in the middle lane if possible by penalizing staying in other lanes. We want to do it because the car has more options to change lanes when moving in the middle lane and seeing the car in front, or in case of emergency situation (other car suddenly changes lane in front of us).
+
+If the car moving in the left or in the right lanes, the opposite far one is marked as unreachable by assigning it the max cost value.
+
+In order to make path smooth enough, I have used spline framework. To make things easier, all coordinates are converted to local car coordinates during spline calculations, and converting back when constructing the path points.
+
+As a future work, it would be very interesting to develop more complicated cost function and to create more aggressive but still comfortable way of driving - for example, approach cars in front more closely and then speeding up when changing lane in order to overtake cars on the side.
+
 ### Simulator.
 You can download the Term3 Simulator which contains the Path Planning Project from the [releases tab (https://github.com/udacity/self-driving-car-sim/releases).
 
@@ -38,13 +50,13 @@ Here is the data provided from the Simulator to the C++ Program
 #### Previous path data given to the Planner
 
 //Note: Return the previous list but with processed points removed, can be a nice tool to show how far along
-the path has processed since last time. 
+the path has processed since last time.
 
 ["previous_path_x"] The previous list of x points previously given to the simulator
 
 ["previous_path_y"] The previous list of y points previously given to the simulator
 
-#### Previous path's end s and d values 
+#### Previous path's end s and d values
 
 ["end_path_s"] The previous list's last point's frenet s value
 
@@ -52,7 +64,7 @@ the path has processed since last time.
 
 #### Sensor Fusion Data, a list of all other car's attributes on the same side of the road. (No Noise)
 
-["sensor_fusion"] A 2d vector of cars and then that car's [car's unique ID, car's x position in map coordinates, car's y position in map coordinates, car's x velocity in m/s, car's y velocity in m/s, car's s position in frenet coordinates, car's d position in frenet coordinates. 
+["sensor_fusion"] A 2d vector of cars and then that car's [car's unique ID, car's x position in map coordinates, car's y position in map coordinates, car's x velocity in m/s, car's y velocity in m/s, car's s position in frenet coordinates, car's d position in frenet coordinates.
 
 ## Details
 
@@ -82,7 +94,7 @@ A really helpful resource for doing this project and creating smooth trajectorie
   * Run either `install-mac.sh` or `install-ubuntu.sh`.
   * If you install from source, checkout to commit `e94b6e1`, i.e.
     ```
-    git clone https://github.com/uWebSockets/uWebSockets 
+    git clone https://github.com/uWebSockets/uWebSockets
     cd uWebSockets
     git checkout e94b6e1
     ```
@@ -137,4 +149,3 @@ still be compilable with cmake and make./
 
 ## How to write a README
 A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
-
