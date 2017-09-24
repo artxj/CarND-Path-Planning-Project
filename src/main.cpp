@@ -28,12 +28,14 @@ constexpr double TIME_STEP = 0.02;
 const double CARS_MIN_DISTANCE = 30.0;
 const double MAX_VELOCITY = 49.5;
 const double VELOCITY_STEP = 0.25;
+const double DOUBLE_MAX = std::numeric_limits<double>::max();
 
 constexpr double time_per_velocity() { return TIME_STEP / 2.24; }
 
 typedef struct {
   bool is_close;
   double velocity;
+  double distance;
 } CarInfo;
 
 // Checks if the SocketIO event has JSON data.
@@ -176,13 +178,13 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s, const vec
 
 }
 
-// Reads sensor fusion information and provides an information about closest car in the same lane
+// Reads sensor fusion information and provides an information about closest car in the given lane
 void findClosestCar(const vector<vector<double> > &sensor_fusion,
   const double car_first_s, const double car_last_s, const int lane,
   const int old_lane, const unsigned int prev_size, bool &car_close, double &closest_car_velocity,
   double &closest_car_distance) {
   car_close = false;
-  double min_distance = std::numeric_limits<double>::max();
+  double min_distance = DOUBLE_MAX;
 
   for (unsigned int i = 0; i < sensor_fusion.size(); ++i) {
     const vector<double> sensor_car = sensor_fusion[i];
@@ -223,6 +225,7 @@ void findClosestCar(const vector<vector<double> > &sensor_fusion,
   closest_car_distance = min_distance;
 }
 
+// Calculates the path using previous points and current car position
 void calculatePath(const vector<double> &previous_path_x, const vector<double> &previous_path_y,
   const int lane, const double ref_velocity, const double car_s,
   const double car_x, const double car_y, const double car_yaw,
@@ -313,18 +316,25 @@ void calculatePath(const vector<double> &previous_path_x, const vector<double> &
   }
 }
 
+// Calculates the cost of switching to / staying in the given lane
 double calculateCost(const int lane, const double closest_car_distance,
   const double closest_car_velocity, const double ref_velocity) {
+
+  // if collision can occur, the cost is maximal
   if (closest_car_distance <= 0) return 1.0;
+
   double cost = 0.0;
 
+  // penalizes the staying in the lane with slow cars,
+  // penalty is larger if car is nearby
   double velocity_diff = ref_velocity - closest_car_velocity;
   if (velocity_diff < 0) velocity_diff = 0;
-
   if (closest_car_distance < 3 * CARS_MIN_DISTANCE) {
     cost += 1 - exp(-velocity_diff / closest_car_distance);
   }
 
+  // penalize all lanes except the middle one
+  // because we have more options there and should stick to it as possible
   if (lane != 1) cost += 0.2;
 
   if (cost > 1) cost = 1;
@@ -414,18 +424,21 @@ int main() {
         	json msgJson;
 
           const unsigned int prev_size = previous_path_x.size();
-          //cout << prev_size << endl;
 
-          vector<double> costs = { 2, 2, 2 };
-          vector<CarInfo> associated_info(3); // contains vectors of {is_car_close, velocity}
+          vector<double> costs = { 1, 1, 1 };
+          vector<CarInfo> associated_info(3);
+
+          // find closest cars in all lanes and calculate resulted costs
           for (unsigned int check_lane = 0; check_lane < 3; ++check_lane) {
             vector<double> x_vals;
             vector<double> y_vals;
 
+            // make the path with switching to given lane
             calculatePath(previous_path_x, previous_path_y, check_lane, ref_velocity,
               car_s, car_x, car_y, car_yaw, map_waypoints_s, map_waypoints_x,
               map_waypoints_y, x_vals, y_vals);
 
+            // find the last points of this path
             const unsigned int next_size = x_vals.size();
             const double last_x = x_vals[next_size - 1];
             const double last_y = y_vals[next_size - 1];
@@ -435,21 +448,26 @@ int main() {
             const vector<double> frenet = getFrenet(last_x, last_y, last_yaw,
               map_waypoints_x, map_waypoints_y);
 
+            // find the closest car in new lane
             bool car_close = false;
             double closest_car_velocity = ref_velocity;
             double closest_car_distance = std::numeric_limits<double>::max();
             findClosestCar(sensor_fusion, car_s, frenet[0], check_lane, lane, prev_size,
               car_close, closest_car_velocity, closest_car_distance);
 
+            // calculate the corresponding cost value
             costs[check_lane] = calculateCost(check_lane, closest_car_distance,
               closest_car_velocity, MAX_VELOCITY);
             // cout << "Cost for lane " << check_lane << " is " << costs[check_lane] << endl;
             CarInfo car_info;
             car_info.is_close = car_close;
             car_info.velocity = closest_car_velocity;
+            car_info.distance = closest_car_distance;
 
             associated_info[check_lane] = car_info;
           }
+
+          // mark far lanes as impossible
           if (lane == 0) costs[2] = 1;
           if (lane == 2) costs[0] = 1;
 
@@ -464,6 +482,8 @@ int main() {
           }
 
           const unsigned int prev_lane = lane;
+
+          // find the min cost value
           auto min_result = std::min_element(costs.begin(), costs.end());
           lane = std::distance(costs.begin(), min_result);
 
@@ -472,15 +492,23 @@ int main() {
 
           const bool car_close = associated_info[lane].is_close;
           const double closest_car_velocity = associated_info[lane].velocity;
+          const double closest_car_distance = associated_info[lane].distance;
+
           if (car_close) {
+            // car is close, we need to slow down
             if (ref_velocity > closest_car_velocity) ref_velocity -= VELOCITY_STEP;
+
+            // car is VERY close, we need to slow more
+            if (closest_car_distance < 10) ref_velocity -= 2 * VELOCITY_STEP;
           } else if (ref_velocity < MAX_VELOCITY && prev_lane == lane) {
+            // speed up if we don't change lane in the same time
             ref_velocity += VELOCITY_STEP;
           }
 
           vector<double> next_x_vals;
           vector<double> next_y_vals;
 
+          // calculate the final path
           calculatePath(previous_path_x, previous_path_y, lane, ref_velocity,
             car_s, car_x, car_y, car_yaw, map_waypoints_s, map_waypoints_x,
             map_waypoints_y, next_x_vals, next_y_vals);
