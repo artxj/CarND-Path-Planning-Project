@@ -1,6 +1,12 @@
 # CarND-Path-Planning-Project
 Self-Driving Car Engineer Nanodegree Program
 
+[//]: # (Image References)
+
+[sim01]: ./images/sim01.jpeg "Simulator"
+
+![sim01][]
+
 ## Writeup
 
 I have implemented the following idea in this project. Every update step, the three possible paths are generated: keeping the current lane, or changing the lane to the one of the other twos. For every option the information about the closest car (its speed and distance to it) is obtained using the sensor fusion. Based on this info, the cost is assigned to each of three lanes.
